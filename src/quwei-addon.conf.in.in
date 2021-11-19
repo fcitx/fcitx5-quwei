@@ -2,7 +2,7 @@
 Name=Quwei
 Category=InputMethod
 Version=@PROJECT_VERSION@
-Library=quwei
+Library=libquwei
 Type=SharedLibrary
 OnDemand=True
 Configurable=True
