@@ -5,11 +5,14 @@
  *
  */
 #include "quwei.h"
+#include <fcitx-utils/i18n.h>
 #include <fcitx-utils/utf8.h>
 #include <fcitx/candidatelist.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/userinterfacemanager.h>
+#include <punctuation_public.h>
+#include <quickphrase_public.h>
 #include <utility>
 
 namespace {
@@ -185,6 +188,46 @@ void QuweiState::keyEvent(fcitx::KeyEvent &event) {
 
     if (buffer_.empty()) {
         if (!event.key().isDigit()) {
+            // if it gonna commit something
+            auto c = fcitx::Key::keySymToUnicode(event.key().sym());
+            if (!c) {
+                return;
+            }
+            std::string punc, puncAfter;
+            // skip key pad
+            if (c && !event.key().isKeyPad()) {
+                std::tie(punc, puncAfter) =
+                    engine_->punctuation()
+                        ->call<fcitx::IPunctuation::pushPunctuationV2>("zh_CN",
+                                                                       ic_, c);
+            }
+            if (event.key().check(FcitxKey_semicolon) &&
+                engine_->quickphrase()) {
+                auto keyString = fcitx::utf8::UCS4ToUTF8(c);
+                // s is punc or key
+                auto output = !punc.empty() ? (punc + puncAfter) : keyString;
+                // alt is key or empty
+                auto altOutput = !punc.empty() ? keyString : "";
+                // if no punc: key -> key (s = key, alt = empty)
+                // if there's punc: key -> punc, return -> key (s = punc, alt =
+                // key)
+                std::string text;
+                engine_->quickphrase()->call<fcitx::IQuickPhrase::trigger>(
+                    ic_, text, "", output, altOutput,
+                    fcitx::Key(FcitxKey_semicolon));
+                event.filterAndAccept();
+                return;
+            }
+            if (!punc.empty()) {
+                event.filterAndAccept();
+                ic_->commitString(punc + puncAfter);
+                if (size_t length = fcitx::utf8::lengthValidated(puncAfter);
+                    length != 0 && length != fcitx::utf8::INVALID_LENGTH) {
+                    for (size_t i = 0; i < length; i++) {
+                        ic_->forwardKey(fcitx::Key(FcitxKey_Left));
+                    }
+                }
+            }
             return;
         }
     } else {
@@ -253,6 +296,22 @@ QuweiEngine::QuweiEngine(fcitx::Instance *instance)
         throw std::runtime_error("Failed to create converter");
     }
     instance->inputContextManager().registerProperty("quweiState", &factory_);
+}
+
+void QuweiEngine::activate(const fcitx::InputMethodEntry &entry,
+                           fcitx::InputContextEvent &event) {
+    FCITX_UNUSED(entry);
+    auto *inputContext = event.inputContext();
+    // Request full width.
+    fullwidth();
+    chttrans();
+    for (const auto *actionName : {"chttrans", "punctuation", "fullwidth"}) {
+        if (auto *action =
+                instance_->userInterfaceManager().lookupAction(actionName)) {
+            inputContext->statusArea().addAction(
+                fcitx::StatusGroup::InputMethod, action);
+        }
+    }
 }
 
 void QuweiEngine::keyEvent(const fcitx::InputMethodEntry &entry,

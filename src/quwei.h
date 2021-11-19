@@ -43,6 +43,8 @@ class QuweiEngine : public fcitx::InputMethodEngineV2 {
 public:
     QuweiEngine(fcitx::Instance *instance);
 
+    void activate(const fcitx::InputMethodEntry &entry,
+                  fcitx::InputContextEvent &event) override;
     void keyEvent(const fcitx::InputMethodEntry &entry,
                   fcitx::KeyEvent &keyEvent) override;
 
@@ -53,7 +55,13 @@ public:
     auto conv() const { return conv_; }
     auto instance() const { return instance_; }
 
+    FCITX_ADDON_DEPENDENCY_LOADER(quickphrase, instance_->addonManager());
+    FCITX_ADDON_DEPENDENCY_LOADER(punctuation, instance_->addonManager());
+
 private:
+    FCITX_ADDON_DEPENDENCY_LOADER(chttrans, instance_->addonManager());
+    FCITX_ADDON_DEPENDENCY_LOADER(fullwidth, instance_->addonManager());
+
     fcitx::Instance *instance_;
     fcitx::FactoryFor<QuweiState> factory_;
     iconv_t conv_;
