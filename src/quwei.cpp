@@ -250,7 +250,9 @@ void QuweiState::keyEvent(fcitx::KeyEvent &event) {
         }
     }
 
-    buffer_.type(event.key().sym());
+    if (event.key().isDigit()) {
+        buffer_.type('0' + event.key().digit());
+    }
     updateUI();
     return event.filterAndAccept();
 }
